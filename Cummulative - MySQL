@@ -1,0 +1,163 @@
+SELECT * FROM Prio_GL.english;
+SELECT SUM(DR),SUM(CR) FROM english;
+
+SELECT *, DR-CR AS Balance2 FROM ENGLISH;
+
+SET SQL_SAFE_UPDATES = 0;
+
+
+-- Create Balance Column and Fix Format --
+
+UPDATE ENGLISH
+SET Balance  = DR - CR;
+
+SELECT SUM(BALANCE), SUM(DR)-SUM(CR) FROM ENGLISH;
+
+SELECT CAST(DR AS DECIMAL(10,2)) FROM ENGLISH;
+
+UPDATE ENGLISH 
+SET DR = CAST(DR AS DECIMAL(10,2)),
+	CR = CAST(CR AS DECIMAL(10,2));
+
+SELECT * FROM ENGLISH;
+
+ALTER TABLE ENGLISH
+MODIFY COLUMN DR DECIMAL(10,2),
+MODIFY COLUMN CR DECIMAL(10,2),
+MODIFY COLUMN Balance DECIMAL(10,2);
+
+SELECT SUM(DR)-SUM(CR),SUM(Balance) FROM ENGLISH;
+
+-- Create a Table to Back Up Data -- 
+
+CREATE TABLE `EN` (
+  `no` int DEFAULT NULL,
+  `Code` text,
+  `OB` double DEFAULT NULL,
+  `PD` text,
+  `value date` text,
+  `Internal` text,
+  `Invoices` text,
+  `Offset` text,
+  `Trans` text,
+  `Types` text,
+  `DR` decimal(10,2) DEFAULT NULL,
+  `CR` decimal(10,2) DEFAULT NULL,
+  `Balance` decimal(10,2) DEFAULT NULL,
+  `Currency` text
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+SELECT * FROM EN;
+
+INSERT INTO EN
+SELECT * FROM ENGLISH;
+
+-- DATE FORMAT AND FIX ERRORS SPACES OR NULL
+
+SELECT Date_format(str_to_date(PD,'%Y-%m-%d'),'%d-%m-%Y') FROM EN;
+
+UPDATE EN
+SET PD = Date_format(str_to_date(PD,'%d-%m-%Y'),'%Y-%m-%d')
+WHERE PD IS NOT NULL AND PD != '';
+
+UPDATE EN
+SET `value date` = Date_format(str_to_date(`value date`,'%d-%m-%Y'),'%Y-%m-%d')
+WHERE `value date` IS NOT NULL AND `value date` != '';
+
+UPDATE EN
+SET PD = NULL
+WHERE PD IS NULL OR PD ='';
+
+UPDATE EN
+SET `value date` = null
+WHERE `value date` IS NULL OR `value date` = '';
+
+ALTER TABLE EN
+MODIFY COLUMN PD DATE,
+MODIFY COLUMN `value date` DATE;
+
+-- Cummulative of Current Year--
+UPDATE EN
+JOIN (
+		SELECT NO,
+		SUM(BALANCE) OVER (PARTITION BY `CODE` ORDER BY `NO`) AS Cummulative1
+		FROM EN) AS C1
+ON EN.NO = C1.NO
+SET Cummulative = Cummulative1;
+
+-- Cumulative Amount from Beginning Balance--
+
+UPDATE EN
+SET Cummulative = Cummulative + OB;
+
+
+ALTER TABLE EN
+ADD COLUMN DEX INT;
+
+UPDATE EN
+JOIN(
+	SELECT NO, 
+		row_number() OVER (PARTITION BY CODE ORDER BY NO) AS IDEX
+	FROM EN) AS DEX
+ON EN.NO = DEX.NO
+SET EN.DEX = DEX.IDEX;
+
+SELECT DISTINCT(CODE), MAX(DEX) OVER (PARTITION BY CODE) FROM EN;
+
+-- FIND THE LAST INDEX NUMBER OF EACH CODE TO DETERMINE THE TRIAL BALANCE AMOUNT --
+
+
+ALTER TABLE EN
+ADD COLUMN MAX1 INT;
+
+UPDATE EN 
+JOIN (
+		SELECT DISTINCT(CODE) AS CODE2, 
+        MAX(DEX) OVER (PARTITION BY CODE) AS MAXDEX
+        FROM EN) AS DEX2
+ON EN.CODE = DEX2.CODE2
+SET EN.MAX1 = DEX2.MAXDEX;
+
+
+UPDATE EN
+SET TB = Cummulative
+WHERE DEX = MAX1;
+
+
+
+
+-- 	SINCE THE TRIAL BALANCE DOESN'T EQUAL 0, IT MEANS THE DIFFERENT AMOUNT COMES FROM THE CUMULATIVE OF THE CURRENT YEAR OR DUE TO THE OPENING BALANCE-- 
+
+WITH CTE AS 
+(SELECT distinct(CODE), MAX(OB) OVER (PARTITION BY CODE) AS MAX2 FROM EN)
+
+SELECT SUM(MAX2) FROM CTE
+
+-- AFTER TESTING, THE DIFFERENCE COMES FROM THE OPENING BALANCE -- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
