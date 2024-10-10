@@ -1,0 +1,173 @@
+
+SELECT * FROM `Aging Report`.FINAL;
+
+-- After testing, generate the final table to represent the AR aging using FIFO and export it to Excel. Tada! FINISH --
+
+INSERT INTO FINAL
+SELECT *,
+	CASE
+		WHEN INDEX1=1 THEN PAID + C1
+        WHEN INDEX1 >1 THEN POSITIVE
+        WHEN INDEX2 =1 THEN Total_Invoices + C2
+        WHEN INDEX2 >1 THEN NEGATIVE
+        ELSE 0
+	END AS FIFO_AMT
+FROM AR10
+CREATE TABLE `FINAL` (
+  `No` int DEFAULT NULL,
+  `Account_Description` text,
+  `English` text,
+  `Code` text,
+  `Contact` text,
+  `phone` text,
+  `Mobile_Phone` text,
+  `fax` text,
+  `Date_of_payment` text,
+  `The_days_of _arrears` int DEFAULT NULL,
+  `Invoicing` text,
+  `Type_of_movement` text,
+  `Invoice_Date` text,
+  `Details` text,
+  `Amount` text,
+  `FIFO` text,
+  `Mapping` text,
+  `ILS` decimal(10,2) DEFAULT NULL,
+  `NEGATIVE` decimal(10,2) DEFAULT NULL,
+  `POSITIVE` decimal(10,2) DEFAULT NULL,
+  `PAID` decimal(10,2) DEFAULT NULL,
+  `C1` decimal(10,2) DEFAULT NULL,
+  `Total_Invoices` decimal(10,2) DEFAULT NULL,
+  `C2` decimal(10,2) DEFAULT NULL,
+  `INDEX1` int DEFAULT NULL,
+  `INDEX2` int DEFAULT NULL,
+  `FIFO_AMT` DECIMAL(10,2)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+-- Testing to ensure the final amount using FIFO to match the balance of accounts receivable (AR) --
+
+SELECT SUM(ILS)
+FROM AR10
+
+
+SELECT *,
+	CASE
+		WHEN INDEX1=1 THEN PAID + C1
+        WHEN INDEX1 >1 THEN POSITIVE
+        WHEN INDEX2 =1 THEN Total_Invoices + C2
+        WHEN INDEX2 >1 THEN NEGATIVE
+        ELSE 0
+	END AS FIFO_AMT
+FROM AR10
+
+
+-- Update format of columns --
+
+SELECT * FROM AR10
+UPDATE AR10
+SET INDEX2 = 0
+WHERE INDEX2 IS NULL
+
+UPDATE AR10
+SET INDEX1 = 0
+WHERE INDEX1 IS NULL
+
+
+SELECT * FROM AR10
+
+-- Update to identify the order of outstanding Payments--
+
+UPDATE AR10 T1
+JOIN(
+	SELECT `NO`,
+			ROW_NUMBER() OVER (PARTITION BY `Code`, English ORDER BY `NO`) AS INDEX3
+	FROM AR10
+    WHERE Total_Invoices + C2 < 0
+) AS T2
+ON T1.`NO` = T2.`NO`
+SET T1.INDEX2 = T2.INDEX3
+
+
+
+ALTER TABLE AR10
+ADD COLUMN INDEX2 INT
+
+
+
+-- Update to identify the order of outstanding invoices--
+
+
+UPDATE AR10 T1
+JOIN (
+    SELECT 
+        `NO`,
+        ROW_NUMBER() OVER (PARTITION BY `Code`, English ORDER BY `NO`) AS INDEX2
+    FROM AR10
+    WHERE PAID + C1 > 0
+) AS T2
+ON T1.`NO` = T2.`NO`
+SET T1.INDEX1 = T2.INDEX2
+
+
+ALTER TABLE AR10
+ADD COLUMN INDEX1 INT
+
+
+
+-- Testing to identify the first outstanding invoice --
+
+SELECT *,
+ROW_NUMBER() OVER (PARTITION BY `Code`, English ORDER BY `NO`)
+FROM AR10
+WHERE PAID + C1 > 0
+ORDER BY 1 ASC
+
+
+SELECT * FROM AR10
+ORDER BY 1 ASC
+SELECT * FROM AR10
+
+
+-- Generate all necessary columns for calculations and back up data in case of loss --
+
+INSERT INTO AR10
+SELECT *,
+
+SUM(NEGATIVE) OVER (PARTITION BY `code`,english) as PAID,
+
+SUM(POSITIVE) OVER (PARTITION BY `code`,english ORDER BY `NO`) as C1,
+
+SUM(POSITIVE) OVER (PARTITION BY `code`,english) as Total_Invoices,
+
+SUM(NEGATIVE) OVER (PARTITION BY `code`,english ORDER BY `NO`) as C2
+
+FROM AR1
+SELECT *
+FROM AR10
+CREATE TABLE `AR10` (
+  `No` int DEFAULT NULL,
+  `Account_Description` text,
+  `English` text,
+  `Code` text,
+  `Contact` text,
+  `phone` text,
+  `Mobile_Phone` text,
+  `fax` text,
+  `Date_of_payment` text,
+  `The_days_of _arrears` int DEFAULT NULL,
+  `Invoicing` text,
+  `Type_of_movement` text,
+  `Invoice_Date` text,
+  `Details` text,
+  `Amount` text,
+  `FIFO` text,
+  `Mapping` text,
+  `ILS` decimal(10,2) DEFAULT NULL,
+  `NEGATIVE` decimal(10,2) DEFAULT NULL,
+  `POSITIVE` decimal(10,2) DEFAULT NULL,
+  `PAID` decimal(10,2) DEFAULT NULL,
+  `C1` decimal(10,2) DEFAULT NULL,
+  `Total_Invoices` decimal(10,2) DEFAULT NULL,
+  `C2` decimal(10,2) DEFAULT NULL
+
+) 
